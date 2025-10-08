@@ -141,11 +141,23 @@ elif page == "Part 1: The Math of Convolution":
         k_h, k_w = kernel.shape
         o_h, o_w = i_h - k_h + 1, i_w - k_w + 1
         output_matrix = np.zeros((o_h, o_w))
+        
+        st.header("Results")
+        st.subheader("Step-by-Step Calculation")
+        
+        expander = st.expander("Show step-by-step calculation")
+
         for y in range(o_h):
             for x in range(o_w):
-                output_matrix[y, x] = np.sum(input_matrix[y:y+k_h, x:x+k_w] * kernel)
+                roi = input_matrix[y:y+k_h, x:x+k_w]
+                output_matrix[y, x] = np.sum(roi * kernel)
+                with expander:
+                    st.markdown(f"**Step ({y+1}, {x+1}):**")
+                    st.text(f"Region of Interest:\n{roi}")
+                    st.text(f"Kernel:\n{kernel}")
+                    st.text(f"Calculation: np.sum({roi.flatten()} * {kernel.flatten()}) = {output_matrix[y, x]}")
+                    st.markdown("---")
 
-        st.header("Results")
         st.subheader("3. Resulting Feature Map")
         st.table(output_matrix.astype(int))
         
@@ -204,18 +216,38 @@ elif page == "Ethical Considerations in CNNs":
     st.title("Ethical Considerations in CNNs")
     st.markdown("Developing and deploying CNNs comes with significant ethical responsibilities.")
     
-    st.subheader("1. Data Bias")
-    st.warning("Models trained on biased data will produce biased results. If a dataset underrepresents a demographic, the model will perform poorly for that group.")
+    st.subheader("1. Biases in Image Datasets")
+    st.warning("""
+    **Concern:** The performance and fairness of a CNN are highly dependent on the data it was trained on. If a training dataset is not diverse and representative of the real world, the model will inherit and amplify existing societal biases.
+    
+    **Example:** A facial recognition model trained primarily on images of one demographic may perform poorly and make unfair judgments when applied to individuals from underrepresented groups.
+    """)
 
-    st.subheader("2. Data Security & Privacy")
-    st.warning("Training data can be sensitive (e.g., medical scans, faces). This data must be secured and anonymized to protect user privacy.")
+    st.subheader("2. Security and Confidentiality of Data")
+    st.warning("""
+    **Concern:** CNNs often require vast amounts of data for training, which can include sensitive personal information such as medical scans or personal photos for facial recognition.
     
-    st.subheader("3. Transparency & Interpretability")
-    st.warning("CNNs can be 'black boxes,' making it hard to understand their decisions. Interpretability is crucial for accountability and trust.")
+    **Example:** A breach of a healthcare database used for training a medical imaging CNN could expose the private health information of thousands of patients.
+    """)
     
-    st.subheader("4. Responsible Deployment")
-    st.warning("Using CNNs in high-stakes areas like self-driving cars or medical diagnosis requires extreme caution, rigorous testing, and human oversight.")
+    st.subheader("3. Need for Interpretability and Transparency")
+    st.warning("""
+    **Concern:** CNNs are often considered "black boxes" because their decision-making processes are not easily understood by humans. It can be difficult to determine *why* a model made a particular prediction.
     
-    st.subheader("5. Consequences of Errors")
-    st.warning("All models make mistakes. In critical applications, the consequences of errors can be severe, so safeguards and appeal processes are necessary.")
+    **Example:** If a CNN denies a loan application, the applicant has a right to know the reasoning behind the decision. Without transparency, it's impossible to challenge or correct erroneous conclusions.
+    """)
+    
+    st.subheader("4. Responsible Deployment in Critical Applications")
+    st.warning("""
+    **Concern:** The deployment of CNNs in high-stakes applications like autonomous vehicle navigation, medical diagnosis, and public surveillance carries significant risks.
+    
+    **Example:** An autonomous car's object detection system failing to recognize a pedestrian in unusual lighting conditions could have fatal consequences.
+    """)
+    
+    st.subheader("5. Potential Harmful Consequences of Errors")
+    st.warning("""
+    **Concern:** Even highly accurate models make mistakes. The consequences of these inaccuracies can range from minor inconveniences to severe harm.
+    
+    **Example:** A diagnostic AI incorrectly identifying cancer in a medical scan can lead to immense patient distress and unnecessary procedures. Conversely, failing to detect a disease could delay critical treatment.
+    """)
 
