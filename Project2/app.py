@@ -213,7 +213,7 @@ elif page == "Part 2: Understanding CNNs":
         st.pyplot(plot_softmax_output())
 
 # --- Page 4: Ethical Considerations ---
-elif page == "Ethical Considerations in CNNs":
+elif page == "Ethical Considerations":
     st.title("Ethical Considerations in CNNs")
     st.markdown("Developing and deploying CNNs comes with significant ethical responsibilities.")
     
