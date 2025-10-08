@@ -179,7 +179,7 @@ elif page == "Part 1: The Math of Convolution":
 elif page == "Part 2: Understanding CNNs":
     st.title("Part 2: Understanding CNNs")
     st.markdown("CNNs are deep learning models for grid-like data (e.g., images). They learn a hierarchy of features, from simple edges to complex objects.")
-    st.image("https://miro.medium.com/v2/resize:fit:1400/1*uAeANQIOuKSqnuFJ-vWwWg.png", caption="A typical CNN architecture.", use_column_width=True)
+    st.image("https://miro.medium.com/v2/resize:fit:1400/1*uAeANQIOuKSqnuFJ-vWwWg.png", caption="A typical CNN architecture.", use_container_width=True)
 
     tab1, tab2 = st.tabs(["Image Dimensions", "Steps in a CNN"])
     with tab1:
@@ -191,7 +191,8 @@ elif page == "Part 2: Understanding CNNs":
         st.subheader("Deep Dive: The Steps in a CNN")
         st.markdown("#### 1. Convolutional Layers")
         st.markdown("Filters (kernels) slide over the input image, performing element-wise multiplication and summation to create a **feature map**. Each map highlights a specific feature.")
-        st.image("https://i.imgur.com/1Abh2xI.gif", caption="Animation of a filter creating a feature map.", use_column_width=True)
+        # Replaced the broken animated gif with a stable static image
+        st.image("https://editor.analyticsvidhya.com/uploads/36551convolution.png", caption="A filter (kernel) slides over the input to create a feature map.", use_container_width=True)
 
         st.markdown("#### 2. Activation Function (ReLU)")
         st.markdown("The **ReLU** function introduces non-linearity by changing all negative values to zero (`f(x) = max(0, x)`), allowing the network to learn more complex patterns.")
