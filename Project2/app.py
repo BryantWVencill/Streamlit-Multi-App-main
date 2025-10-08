@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import toeplitz
-import graphviz
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -25,7 +24,7 @@ def plot_relu():
     ax.grid(True)
     return fig
 
-def create_convolution_matrix(input_shape, kernel_shape):
+def create_convolution_matrix(input_shape, kernel_shape, kernel):
     """
     Constructs the Toeplitz matrix for a 2D convolution operation.
     This demonstrates the mathematical underpinning of convolution as a matrix multiplication.
@@ -39,10 +38,12 @@ def create_convolution_matrix(input_shape, kernel_shape):
     
     # Create the Toeplitz matrix for each row of the kernel
     toeplitz_matrices = []
+    flipped_kernel = np.flipud(np.fliplr(kernel)) # Use the flipped kernel for convolution
     for r in range(k_h):
         # The first row of the Toeplitz matrix for this kernel row
         c = np.zeros(i_w)
-        c[:k_w] = np.flip(kernel[r, :])
+        # Place the flipped kernel row at the beginning
+        c[:k_w] = flipped_kernel[r, :] 
         # The first column
         r_col = np.zeros(o_w)
         r_col[0] = c[0]
@@ -51,16 +52,9 @@ def create_convolution_matrix(input_shape, kernel_shape):
         toeplitz_matrices.append(T)
         
     # Create the doubly block Toeplitz matrix
-    # The number of blocks vertically is the output height
-    num_blocks_h = o_h
-    # The number of blocks horizontally is the input height
-    num_blocks_w = i_h
-    
     block_h, block_w = toeplitz_matrices[0].shape
-    
-    # Initialize the final large matrix
-    C = np.zeros((num_blocks_h * block_h, num_blocks_w * block_w))
-    
+    C = np.zeros((o_h * block_h, i_h * block_w))
+
     for i in range(k_h):
         for j in range(o_h):
             row_start = j * block_h
@@ -70,8 +64,31 @@ def create_convolution_matrix(input_shape, kernel_shape):
             
             if col_end <= C.shape[1]:
                 C[row_start:row_end, col_start:col_end] = toeplitz_matrices[i]
-                
-    return C
+
+    # The resulting matrix C needs to be reshaped or indexed correctly.
+    # A simpler approach for verification is direct multiplication.
+    # The construction above is complex; let's simplify for demonstration.
+    # The full matrix construction for arbitrary inputs/kernels is non-trivial.
+    # For this assignment, we'll construct it for this specific case.
+    
+    final_C = np.zeros((o_h*o_w, i_h*i_w))
+    
+    # For each output pixel, find which input pixels contribute to it
+    for oh_idx in range(o_h):
+        for ow_idx in range(o_w):
+            output_pixel_idx = oh_idx * o_w + ow_idx
+            
+            # Slide the kernel
+            for kh_idx in range(k_h):
+                for kw_idx in range(k_w):
+                    # corresponding input pixel
+                    ih_idx = oh_idx + kh_idx
+                    iw_idx = ow_idx + kw_idx
+                    input_pixel_idx = ih_idx * i_w + iw_idx
+                    
+                    final_C[output_pixel_idx, input_pixel_idx] = flipped_kernel[kh_idx, kw_idx]
+                    
+    return final_C
 
 # --- Main App ---
 
@@ -105,7 +122,7 @@ if page == "Introduction":
 
         The project is divided into several sections, accessible via the navigation sidebar:
 
-        - **Part 1: The Math of Convolution:** An interactive section to explore how convolution operations work by manipulating input matrices and kernels. It also demonstrates how to construct and analyze the corresponding convolution matrix (Toeplitz matrix).
+        - **Part 1: The Math of Convolution:** An interactive section to explore how convolution operations work by manipulating input matrices and kernels. It also demonstrates how to construct and analyze the corresponding convolution matrix.
 
         - **Part 2: Understanding CNNs:** A detailed breakdown of the components that make up a CNN, including convolutional layers, pooling layers, and fully connected layers. This section uses diagrams and visual aids to explain the entire process.
 
@@ -200,13 +217,13 @@ elif page == "Part 1: The Math of Convolution":
                         # Extract the region of interest
                         roi = input_matrix[y:y+k_h, x:x+k_w]
                         # Perform element-wise multiplication and sum
-                        output_matrix[y, x] = np.sum(roi * flipped_kernel)
+                        output_matrix[y, x] = np.sum(roi * kernel) # Use original kernel for correlation which is what DL libraries do
                         
                         with expander:
                             st.markdown(f"**Step ({y+1}, {x+1}):**")
                             st.text(f"Region of Interest:\n{roi}")
-                            st.text(f"Flipped Kernel:\n{flipped_kernel}")
-                            st.text(f"Calculation: np.sum({roi.flatten()} * {flipped_kernel.flatten()}) = {output_matrix[y, x]}")
+                            st.text(f"Kernel:\n{kernel}")
+                            st.text(f"Calculation: np.sum({roi.flatten()} * {kernel.flatten()}) = {output_matrix[y, x]}")
                             st.markdown("---")
 
 
@@ -215,9 +232,9 @@ elif page == "Part 1: The Math of Convolution":
                 st.table(output_matrix.astype(int))
                 
                 # Convolution Matrix (Toeplitz)
-                st.subheader("4. The Convolution Matrix (Toeplitz Form)")
+                st.subheader("4. The Convolution Matrix")
                 st.markdown("""
-                The convolution operation can be represented as a single matrix multiplication by transforming the kernel into a large, sparse matrix called a **doubly block Toeplitz matrix**.
+                The convolution operation can be represented as a single matrix multiplication by transforming the kernel into a large, sparse matrix.
                 
                 `Output (flattened) = Convolution Matrix * Input (flattened)`
                 
@@ -225,7 +242,7 @@ elif page == "Part 1: The Math of Convolution":
                 """)
 
                 try:
-                    conv_matrix = create_convolution_matrix(input_matrix.shape, kernel.shape)
+                    conv_matrix = create_convolution_matrix(input_matrix.shape, kernel.shape, kernel)
                     
                     # Flatten the input and multiply
                     input_flat = input_matrix.flatten()
@@ -242,7 +259,11 @@ elif page == "Part 1: The Math of Convolution":
                     st.text("Output from multiplying by the convolution matrix (may have rounding differences):")
                     st.table(output_from_matrix.astype(int))
                     
-                    st.success("Verification successful: The outputs from both methods match!")
+                    # Use np.allclose for robust floating point comparison
+                    if np.allclose(output_matrix, output_from_matrix):
+                        st.success("Verification successful: The outputs from both methods match!")
+                    else:
+                        st.error("Verification failed: The outputs do not match.")
 
                 except Exception as e:
                     st.error(f"Could not generate the convolution matrix. It might be too large for display or an error occurred: {e}")
@@ -261,16 +282,10 @@ elif page == "Part 2: Understanding CNNs":
 
     st.header("Key Components of a CNN")
     
-    # Diagram of a typical CNN architecture
-    cnn_graph = graphviz.Digraph()
-    cnn_graph.attr('node', shape='box', style='rounded')
-    cnn_graph.edge('Input Image', 'Convolutional Layer')
-    cnn_graph.edge('Convolutional Layer', 'Activation (ReLU)')
-    cnn_graph.edge('Activation (ReLU)', 'Pooling Layer')
-    cnn_graph.edge('Pooling Layer', 'Fully Connected Layer')
-    cnn_graph.edge('Fully Connected Layer', 'Output Layer')
-
-    st.graphviz_chart(cnn_graph, use_container_width=True)
+    # Diagram of a typical CNN architecture using an image
+    st.image("https://miro.medium.com/v2/resize:fit:1400/1*uAeANQIOuKSqnuFJ-vWwWg.png",
+             caption="A typical CNN architecture, showing the flow from input to output.",
+             use_column_width=True)
 
     st.markdown("""
     A typical CNN architecture consists of three main types of layers:
@@ -289,28 +304,21 @@ elif page == "Part 2: Understanding CNNs":
         st.markdown("""
         A digital image is a grid of pixels. The number of dimensions of an image depends on whether it is in color or grayscale.
         
-        - **Grayscale (Black and White) Image:** This image has **2 dimensions**: a `Height` and a `Width`. Each pixel has a single value (typically from 0 to 255) representing its intensity, from black (0) to white (255).
+        - **Grayscale (Black and White) Image:** This image has **2 dimensions**: a `Height` and a `Width`. Each pixel has a single value (typically from 0 to 255) representing its intensity, from black (0) to white (255). We can think of this as having 1 channel.
         
         - **Colored (RGB) Image:** A standard RGB image has **3 dimensions**: `Height`, `Width`, and `Color Channels`. The third dimension, channels, has a depth of 3, corresponding to the **R**ed, **G**reen, and **B**lue color components. Each pixel is a combination of these three intensity values. CNNs process these three channels simultaneously.
         """)
         
-        # Block Diagram Comparison
-        img_dim_graph = graphviz.Digraph()
-        img_dim_graph.attr(rankdir='LR')
-        
-        with img_dim_graph.subgraph(name='cluster_0') as c:
-            c.attr(style='filled', color='lightgrey')
-            c.node_attr.style = 'filled'
-            c.attr(label='RGB Image (3D)')
-            c.node('rgb', 'Height x Width x 3 Channels')
+        # Block Diagram Comparison using columns
+        st.subheader("Visual Comparison")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 🎨 RGB Image (3D)")
+            st.markdown("- **Height**\n- **Width**\n- **Depth (3 Channels: R, G, B)**")
+        with col2:
+            st.markdown("### 🔳 Grayscale Image (2D)")
+            st.markdown("- **Height**\n- **Width**\n- **Depth (1 Channel)**")
 
-        with img_dim_graph.subgraph(name='cluster_1') as c:
-            c.attr(style='filled', color='lightgrey')
-            c.node_attr.style = 'filled'
-            c.attr(label='Grayscale Image (2D)')
-            c.node('bw', 'Height x Width x 1 Channel')
-            
-        st.graphviz_chart(img_dim_graph)
 
     with tab2:
         st.subheader("Deep Dive: The Steps in a CNN")
@@ -322,7 +330,7 @@ elif page == "Part 2: Understanding CNNs":
         This process is repeated across the entire image, generating a 2D **feature map**. Each feature map corresponds to a specific filter and represents the presence of that filter's target feature (e.g., a vertical edge) in the input. A single convolutional layer typically learns many filters in parallel, producing multiple feature maps.
         """)
         
-        st.image("https://i.imgur.com/1Abh2xI.gif", caption="", use_column_width=True)
+        st.image("https://i.imgur.com/1Abh2xI.gif", caption="[Animation of a filter convolving over an input to create a feature map.]", use_column_width=True)
 
         st.markdown("#### 2. Activation Function (ReLU)")
         st.markdown("""
@@ -426,5 +434,8 @@ elif page == "Ethical Considerations in CNNs":
     
     **Example:** A content moderation CNN incorrectly flagging a historical photo as inappropriate content can lead to censorship. A diagnostic AI incorrectly identifying cancer in a medical scan can lead to immense patient distress and unnecessary procedures. Conversely, failing to detect a disease could delay critical treatment.
     
+- **Example:** A content moderation CNN incorrectly flagging a historical photo as inappropriate content can lead to censorship. A diagnostic AI incorrectly identifying cancer in a medical scan can lead to immense patient distress and unnecessary procedures. Conversely, failing to detect a disease could delay critical treatment.
+    
     **Mitigation:** Designing systems with an understanding of their failure modes, providing clear confidence scores with predictions, ensuring there are mechanisms for appeal and correction, and avoiding full automation in decisions where human life and well-being are at stake.
     """)
+
