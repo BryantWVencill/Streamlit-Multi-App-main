@@ -16,426 +16,206 @@ def plot_relu():
     """Generates and returns a matplotlib figure of the ReLU function."""
     x = np.linspace(-10, 10, 100)
     y = np.maximum(0, x)
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 3))
     ax.plot(x, y)
-    ax.set_title("ReLU (Rectified Linear Unit) Activation Function")
+    ax.set_title("ReLU Activation Function")
     ax.set_xlabel("Input")
     ax.set_ylabel("Output")
     ax.grid(True)
     return fig
 
 def create_convolution_matrix(input_shape, kernel_shape, kernel):
-    """
-    Constructs the Toeplitz matrix for a 2D convolution operation.
-    This demonstrates the mathematical underpinning of convolution as a matrix multiplication.
-    """
+    """Constructs the matrix for a 2D cross-correlation operation."""
     i_h, i_w = input_shape
     k_h, k_w = kernel_shape
+    o_h, o_w = i_h - k_h + 1, i_w - k_w + 1
     
-    # Calculate output dimensions
-    o_h = i_h - k_h + 1
-    o_w = i_w - k_w + 1
+    conv_matrix = np.zeros((o_h * o_w, i_h * i_w))
     
-    # Create the Toeplitz matrix for each row of the kernel
-    toeplitz_matrices = []
-    flipped_kernel = np.flipud(np.fliplr(kernel)) # Use the flipped kernel for convolution
-    for r in range(k_h):
-        # The first row of the Toeplitz matrix for this kernel row
-        c = np.zeros(i_w)
-        # Place the flipped kernel row at the beginning
-        c[:k_w] = flipped_kernel[r, :] 
-        # The first column
-        r_col = np.zeros(o_w)
-        r_col[0] = c[0]
-        
-        T = toeplitz(c=r_col, r=c)
-        toeplitz_matrices.append(T)
-        
-    # Create the doubly block Toeplitz matrix
-    block_h, block_w = toeplitz_matrices[0].shape
-    C = np.zeros((o_h * block_h, i_h * block_w))
-
-    for i in range(k_h):
-        for j in range(o_h):
-            row_start = j * block_h
-            row_end = row_start + block_h
-            col_start = (j + i) * block_w
-            col_end = col_start + block_w
-            
-            if col_end <= C.shape[1]:
-                C[row_start:row_end, col_start:col_end] = toeplitz_matrices[i]
-
-    # The resulting matrix C needs to be reshaped or indexed correctly.
-    # A simpler approach for verification is direct multiplication.
-    # The construction above is complex; let's simplify for demonstration.
-    # The full matrix construction for arbitrary inputs/kernels is non-trivial.
-    # For this assignment, we'll construct it for this specific case.
-    
-    final_C = np.zeros((o_h*o_w, i_h*i_w))
-    
-    # For each output pixel, find which input pixels contribute to it
     for oh_idx in range(o_h):
         for ow_idx in range(o_w):
             output_pixel_idx = oh_idx * o_w + ow_idx
-            
-            # Slide the kernel
             for kh_idx in range(k_h):
                 for kw_idx in range(k_w):
-                    # corresponding input pixel
-                    ih_idx = oh_idx + kh_idx
-                    iw_idx = ow_idx + kw_idx
+                    ih_idx, iw_idx = oh_idx + kh_idx, ow_idx + kw_idx
                     input_pixel_idx = ih_idx * i_w + iw_idx
-                    
-                    final_C[output_pixel_idx, input_pixel_idx] = flipped_kernel[kh_idx, kw_idx]
-                    
-    return final_C
+                    conv_matrix[output_pixel_idx, input_pixel_idx] = kernel[kh_idx, kw_idx]
+    return conv_matrix
+
+def show_rgb_example():
+    """Creates an interactive visualization of an RGB image and its channels."""
+    st.subheader("Interactive RGB Image Example")
+    st.markdown("An RGB image is a 3D array of pixels: `Height x Width x 3 Channels`.")
+    
+    # Use session state to keep the image consistent across reruns
+    if 'rgb_image' not in st.session_state:
+        img = np.zeros((4, 4, 3), dtype=np.uint8)
+        img[0:2, 0:2] = [255, 0, 0]    # Red square
+        img[0:2, 2:4] = [0, 255, 0]    # Green square
+        img[2:4, 0:2] = [0, 0, 255]    # Blue square
+        img[2:4, 2:4] = [255, 255, 0]  # Yellow square
+        st.session_state.rgb_image = img
+
+    image = st.session_state.rgb_image
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("**Full RGB Image**")
+        st.image(image, caption=f"Shape: {image.shape}", use_column_width='always')
+    with col2:
+        st.markdown("**Red Channel**")
+        st.image(image[:, :, 0], caption=f"Shape: {image[:, :, 0].shape}", use_column_width='always')
+    with col3:
+        st.markdown("**Green Channel**")
+        st.image(image[:, :, 1], caption=f"Shape: {image[:, :, 1].shape}", use_column_width='always')
+    with col4:
+        st.markdown("**Blue Channel**")
+        st.image(image[:, :, 2], caption=f"Shape: {image[:, :, 2].shape}", use_column_width='always')
+    st.info("A CNN processes these three channels together as a single 3D volume of data.")
+
+def plot_softmax_output():
+    """Generates a bar chart representing softmax output."""
+    classes = ['Cat', 'Dog', 'Bird']
+    probabilities = np.array([0.85, 0.1, 0.05])
+    
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.bar(classes, probabilities, color=['#ff9999','#66b3ff','#99ff99'])
+    ax.set_ylabel('Probability')
+    ax.set_title('Example Softmax Output')
+    ax.set_ylim(0, 1)
+    for i, v in enumerate(probabilities):
+        ax.text(i, v + 0.02, f"{v*100:.0f}%", ha='center', fontweight='bold')
+    return fig
+
 
 # --- Main App ---
 
 # --- Sidebar Navigation ---
 st.sidebar.title("Navigation")
-st.sidebar.markdown("Use the options below to explore the different parts of the assignment.")
-
 page = st.sidebar.radio(
     "Go to",
-    (
-        "Introduction",
-        "Part 1: The Math of Convolution",
-        "Part 2: Understanding CNNs",
-        "Ethical Considerations in CNNs",
-    ),
+    ("Introduction", "Part 1: The Math of Convolution", "Part 2: Understanding CNNs", "Ethical Considerations"),
 )
-st.sidebar.info(
-    "This Streamlit app provides an interactive explanation of Convolutional Neural Networks, "
-    "from the underlying math to their architecture and ethical implications."
-)
-
+st.sidebar.info("An interactive guide to the fundamentals of Convolutional Neural Networks.")
 
 # --- Page 1: Introduction ---
 if page == "Introduction":
     st.title("Assignment: Convolutional Neural Networks (CNNs)")
-    st.markdown("---")
     st.header("Project Overview")
     st.markdown(
         """
-        This application serves as a comprehensive deliverable for the assignment on Convolutional Neural Networks. It is designed to be an interactive tool that explains the core concepts, from the fundamental mathematics to the practical architecture and ethical considerations.
-
-        The project is divided into several sections, accessible via the navigation sidebar:
-
-        - **Part 1: The Math of Convolution:** An interactive section to explore how convolution operations work by manipulating input matrices and kernels. It also demonstrates how to construct and analyze the corresponding convolution matrix.
-
-        - **Part 2: Understanding CNNs:** A detailed breakdown of the components that make up a CNN, including convolutional layers, pooling layers, and fully connected layers. This section uses diagrams and visual aids to explain the entire process.
-
-        - **Ethical Considerations in CNNs:** A discussion of the crucial ethical concerns related to the development and deployment of CNNs, such as data bias, privacy, and responsible use.
-
-        This application is built using Streamlit, a Python framework for creating web apps for machine learning and data science projects.
+        This app is an interactive guide to CNNs for the assignment, covering the core concepts from the underlying math to the final architecture and ethical implications.
+        
+        Use the sidebar to navigate through the different sections.
         """
     )
-    st.info("Select a section from the sidebar on the left to begin.")
 
 # --- Page 2: The Math of Convolution ---
 elif page == "Part 1: The Math of Convolution":
     st.title("Part 1: The Math of Convolution")
-    st.markdown("---")
-    st.markdown(
-        """
-        At the heart of every CNN is the **convolution operation**. This operation uses a small matrix called a **kernel** (or filter) to slide over an input matrix (representing an image) and produce an output matrix called a **feature map**. The feature map highlights specific patterns in the input, such as edges, corners, or textures.
-
-        Mathematically, a convolution is an operation on two functions that produces a third function expressing how the shape of one is modified by the other. In our case, it's a discrete operation on two matrices.
-
-        Below, you can interactively explore this operation.
-        """
-    )
-
+    st.markdown("CNNs use a **convolution operation**, where a **kernel** (or filter) slides over an input matrix to create a **feature map** that highlights patterns.")
     st.header("Interactive Convolution Demo")
 
     col1, col2 = st.columns(2)
-
     with col1:
-        st.subheader("1. Define the Input Matrix")
-        # Example input matrix representing a simple 5x5 image
-        input_matrix_str = st.text_area(
-            "Enter the input matrix (comma-separated, rows on new lines):",
-            "1, 1, 1, 0, 0\n"
-            "0, 1, 1, 1, 0\n"
-            "0, 0, 1, 1, 1\n"
-            "0, 0, 1, 1, 0\n"
-            "0, 1, 1, 0, 0",
-            height=150,
-        )
+        st.subheader("1. Input Matrix")
+        input_matrix_str = st.text_area("Enter the input matrix:", "1,1,1,0,0\n0,1,1,1,0\n0,0,1,1,1\n0,0,1,1,0\n0,1,1,0,0", height=150)
         try:
-            input_matrix = np.array([list(map(int, row.split(','))) for row in input_matrix_str.strip().split('\n')])
-            st.write("Input Matrix Shape:", input_matrix.shape)
+            input_matrix = np.array([list(map(int, r.split(','))) for r in input_matrix_str.strip().split('\n')])
             st.table(input_matrix)
-        except Exception as e:
-            st.error(f"Invalid input matrix format. Please check your input. Error: {e}")
+        except:
+            st.error("Invalid input matrix format.")
             input_matrix = None
-
     with col2:
-        st.subheader("2. Define the Kernel (Filter)")
-        # Example 3x3 kernel for edge detection
-        kernel_str = st.text_area(
-            "Enter the kernel matrix (comma-separated, rows on new lines):",
-            "1, 0, -1\n"
-            "1, 0, -1\n"
-            "1, 0, -1",
-            height=100
-        )
+        st.subheader("2. Kernel (Filter)")
+        kernel_str = st.text_area("Enter the kernel matrix:", "1,0,-1\n1,0,-1\n1,0,-1", height=100)
         try:
-            kernel = np.array([list(map(int, row.split(','))) for row in kernel_str.strip().split('\n')])
-            st.write("Kernel Shape:", kernel.shape)
+            kernel = np.array([list(map(int, r.split(','))) for r in kernel_str.strip().split('\n')])
             st.table(kernel)
-        except Exception as e:
-            st.error(f"Invalid kernel format. Please check your input. Error: {e}")
+        except:
+            st.error("Invalid kernel format.")
             kernel = None
     
-    st.markdown("---")
-    
-    if input_matrix is not None and kernel is not None:
-        if st.button("Calculate Convolution"):
-            st.header("Results")
-            
-            # Perform convolution
-            i_h, i_w = input_matrix.shape
-            k_h, k_w = kernel.shape
-            
-            if i_h < k_h or i_w < k_w:
-                st.error("Input matrix dimensions must be greater than or equal to kernel dimensions.")
+    if input_matrix is not None and kernel is not None and st.button("Calculate Convolution"):
+        i_h, i_w = input_matrix.shape
+        k_h, k_w = kernel.shape
+        o_h, o_w = i_h - k_h + 1, i_w - k_w + 1
+        output_matrix = np.zeros((o_h, o_w))
+        for y in range(o_h):
+            for x in range(o_w):
+                output_matrix[y, x] = np.sum(input_matrix[y:y+k_h, x:x+k_w] * kernel)
+
+        st.header("Results")
+        st.subheader("3. Resulting Feature Map")
+        st.table(output_matrix.astype(int))
+        
+        st.subheader("4. The Convolution Matrix")
+        st.markdown("The entire operation can be represented as `Output = Matrix * Input`.")
+        try:
+            conv_matrix = create_convolution_matrix(input_matrix.shape, kernel.shape, kernel)
+            output_from_matrix = (conv_matrix @ input_matrix.flatten()).reshape((o_h, o_w))
+            st.dataframe(conv_matrix.astype(int))
+            st.markdown("**Verification:**")
+            if np.allclose(output_matrix, output_from_matrix):
+                st.success("Verification successful: The outputs from both methods match!")
             else:
-                o_h = i_h - k_h + 1
-                o_w = i_w - k_w + 1
-                output_matrix = np.zeros((o_h, o_w))
-
-                st.subheader("Step-by-Step Operation")
-                expander = st.expander("Show step-by-step calculation")
-                
-                # Flip kernel for convolution (in math, correlation uses the unflipped kernel)
-                flipped_kernel = np.flipud(np.fliplr(kernel))
-
-                for y in range(o_h):
-                    for x in range(o_w):
-                        # Extract the region of interest
-                        roi = input_matrix[y:y+k_h, x:x+k_w]
-                        # Perform element-wise multiplication and sum
-                        output_matrix[y, x] = np.sum(roi * kernel) # Use original kernel for correlation which is what DL libraries do
-                        
-                        with expander:
-                            st.markdown(f"**Step ({y+1}, {x+1}):**")
-                            st.text(f"Region of Interest:\n{roi}")
-                            st.text(f"Kernel:\n{kernel}")
-                            st.text(f"Calculation: np.sum({roi.flatten()} * {kernel.flatten()}) = {output_matrix[y, x]}")
-                            st.markdown("---")
-
-
-                st.subheader("3. Resulting Feature Map")
-                st.markdown("This is the output of the convolution operation.")
-                st.table(output_matrix.astype(int))
-                
-                # Convolution Matrix (Toeplitz)
-                st.subheader("4. The Convolution Matrix")
-                st.markdown("""
-                The convolution operation can be represented as a single matrix multiplication by transforming the kernel into a large, sparse matrix.
-                
-                `Output (flattened) = Convolution Matrix * Input (flattened)`
-                
-                This demonstrates that convolution is fundamentally a linear operation. The structure of this matrix reveals how each element of the input contributes to each element of the output.
-                """)
-
-                try:
-                    conv_matrix = create_convolution_matrix(input_matrix.shape, kernel.shape, kernel)
-                    
-                    # Flatten the input and multiply
-                    input_flat = input_matrix.flatten()
-                    output_flat_from_matrix = conv_matrix @ input_flat
-                    output_from_matrix = output_flat_from_matrix.reshape((o_h, o_w))
-
-                    st.markdown("Generated Convolution Matrix (may be large):")
-                    st.dataframe(conv_matrix.astype(int))
-                    
-                    st.markdown("**Verification:**")
-                    st.text("Output from direct convolution:")
-                    st.table(output_matrix.astype(int))
-
-                    st.text("Output from multiplying by the convolution matrix (may have rounding differences):")
-                    st.table(output_from_matrix.astype(int))
-                    
-                    # Use np.allclose for robust floating point comparison
-                    if np.allclose(output_matrix, output_from_matrix):
-                        st.success("Verification successful: The outputs from both methods match!")
-                    else:
-                        st.error("Verification failed: The outputs do not match.")
-
-                except Exception as e:
-                    st.error(f"Could not generate the convolution matrix. It might be too large for display or an error occurred: {e}")
-
+                st.error("Verification failed.")
+        except Exception as e:
+            st.error(f"Could not generate the convolution matrix: {e}")
 
 # --- Page 3: Understanding CNNs ---
 elif page == "Part 2: Understanding CNNs":
-    st.title("Part 2: Understanding Convolutional Neural Networks (CNNs)")
-    st.markdown("---")
-    
-    st.markdown("""
-    A Convolutional Neural Network (CNN) is a type of deep learning model specifically designed for processing and analyzing grid-like data, such as images. They are inspired by the biological processes of the visual cortex in animals and are incredibly effective for tasks like image recognition, object detection, and image segmentation.
+    st.title("Part 2: Understanding CNNs")
+    st.markdown("CNNs are deep learning models for grid-like data (e.g., images). They learn a hierarchy of features, from simple edges to complex objects.")
+    st.image("https://miro.medium.com/v2/resize:fit:1400/1*uAeANQIOuKSqnuFJ-vWwWg.png", caption="A typical CNN architecture.", use_column_width=True)
 
-    The key innovation of CNNs is their ability to automatically and adaptively learn a hierarchy of features from the input data. This means lower layers might learn to detect simple features like edges and corners, while higher layers combine these to detect more complex features like shapes, objects, or faces.
-    """)
-
-    st.header("Key Components of a CNN")
-    
-    # Diagram of a typical CNN architecture using an image
-    st.image("https://miro.medium.com/v2/resize:fit:1400/1*uAeANQIOuKSqnuFJ-vWwWg.png",
-             caption="A typical CNN architecture, showing the flow from input to output.",
-             use_column_width=True)
-
-    st.markdown("""
-    A typical CNN architecture consists of three main types of layers:
-    1.  **Convolutional Layers:** The core building block where filters are applied to extract features.
-    2.  **Pooling Layers:** Used to reduce the spatial dimensions of the feature maps, making the model more efficient and robust.
-    3.  **Fully Connected Layers:** The final layers that perform classification based on the extracted features.
-    """)
-    
-    st.markdown("---")
-
-    # --- Tabs for detailed explanations ---
-    tab1, tab2, tab3 = st.tabs(["Image Dimensions", "Steps in a CNN", "Ethical Considerations"])
-
+    tab1, tab2 = st.tabs(["Image Dimensions", "Steps in a CNN"])
     with tab1:
-        st.subheader("Image Dimensions: RGB vs. Grayscale")
-        st.markdown("""
-        A digital image is a grid of pixels. The number of dimensions of an image depends on whether it is in color or grayscale.
-        
-        - **Grayscale (Black and White) Image:** This image has **2 dimensions**: a `Height` and a `Width`. Each pixel has a single value (typically from 0 to 255) representing its intensity, from black (0) to white (255). We can think of this as having 1 channel.
-        
-        - **Colored (RGB) Image:** A standard RGB image has **3 dimensions**: `Height`, `Width`, and `Color Channels`. The third dimension, channels, has a depth of 3, corresponding to the **R**ed, **G**reen, and **B**lue color components. Each pixel is a combination of these three intensity values. CNNs process these three channels simultaneously.
-        """)
-        
-        # Block Diagram Comparison using columns
-        st.subheader("Visual Comparison")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### 🎨 RGB Image (3D)")
-            st.markdown("- **Height**\n- **Width**\n- **Depth (3 Channels: R, G, B)**")
-        with col2:
-            st.markdown("### 🔳 Grayscale Image (2D)")
-            st.markdown("- **Height**\n- **Width**\n- **Depth (1 Channel)**")
-
+        show_rgb_example()
+        st.subheader("Grayscale Images")
+        st.markdown("Grayscale images are simpler, with only 2 dimensions (`Height x Width`) and 1 channel.")
 
     with tab2:
         st.subheader("Deep Dive: The Steps in a CNN")
-
-        st.markdown("#### 1. Convolutional Layers and Feature Maps")
-        st.markdown("""
-        The process begins with the convolutional layer, which applies a set of learnable filters (kernels) to the input image. Each filter is a small matrix of weights. As a filter slides, or "convolves," across the input image, it performs element-wise multiplication with the part of the image it is currently on, and then sums the results into a single output pixel.
-
-        This process is repeated across the entire image, generating a 2D **feature map**. Each feature map corresponds to a specific filter and represents the presence of that filter's target feature (e.g., a vertical edge) in the input. A single convolutional layer typically learns many filters in parallel, producing multiple feature maps.
-        """)
-        
-        st.image("https://i.imgur.com/1Abh2xI.gif", caption="[Animation of a filter convolving over an input to create a feature map.]", use_column_width=True)
+        st.markdown("#### 1. Convolutional Layers")
+        st.markdown("Filters (kernels) slide over the input image, performing element-wise multiplication and summation to create a **feature map**. Each map highlights a specific feature.")
+        st.image("https://i.imgur.com/1Abh2xI.gif", caption="Animation of a filter creating a feature map.", use_column_width=True)
 
         st.markdown("#### 2. Activation Function (ReLU)")
-        st.markdown("""
-        After each convolution operation, an activation function is applied to the feature map. The purpose of this function is to introduce **non-linearity** into the model. Without non-linearity, a deep stack of layers would behave like a single layer, limiting its ability to learn complex patterns.
-        
-        The most common activation function is the **Rectified Linear Unit (ReLU)**. It is computationally efficient and effective. The function is defined as:
-        
-        `f(x) = max(0, x)`
-        
-        In simple terms, it replaces all negative pixel values in the feature map with zero, while keeping positive values unchanged.
-        """)
+        st.markdown("The **ReLU** function introduces non-linearity by changing all negative values to zero (`f(x) = max(0, x)`), allowing the network to learn more complex patterns.")
         st.pyplot(plot_relu())
 
         st.markdown("#### 3. Pooling Layers")
-        st.markdown("""
-        The purpose of pooling layers is to reduce the spatial dimensions (width and height) of the feature maps. This has two main benefits:
-        - It reduces the number of parameters and computational cost in the network.
-        - It helps make the feature detection more robust to changes in the position of the feature in the input image (a property called *spatial invariance*).
-        
-        The most common type of pooling is **Max Pooling**. It involves sliding a small window (e.g., 2x2 pixels) over the feature map and, for each window, taking only the maximum value.
-        """)
-
-        st.markdown("**Example of 2x2 Max Pooling:**")
+        st.markdown("**Pooling layers** reduce the size of feature maps to save computation and make the model more robust. **Max Pooling** is most common, taking the max value from each window.")
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown("**Input Feature Map**")
+            st.markdown("**Input (4x4)**")
             st.table(np.array([[1, 4, 2, 8], [3, 7, 0, 5], [6, 2, 9, 1], [5, 3, 4, 6]]))
         with col2:
-            st.markdown("**Output after Max Pooling**")
+            st.markdown("**Output after 2x2 Max Pooling (2x2)**")
             st.table(np.array([[7, 8], [6, 9]]))
-        st.info("Notice how the 4x4 input is reduced to a 2x2 output by taking the max value from each 2x2 quadrant.")
 
-        st.markdown("#### 4. Fully Connected Layers")
-        st.markdown("""
-        After several convolutional and pooling layers, the high-level features are extracted. The final part of the CNN is typically one or more **fully connected layers**. Before feeding the data into these layers, the final feature maps are **flattened** into a single one-dimensional vector.
-        
-        A fully connected layer is a traditional multi-layer perceptron where every neuron in the layer is connected to every neuron in the previous layer. Its role is to take the high-level features learned by the convolutional layers and use them to perform the final classification task. For example, it might learn that a combination of a "fur" feature, an "ear" feature, and a "whisker" feature strongly suggests the image is of a "cat".
-        """)
-
-        st.markdown("#### 5. Output Layer")
-        st.markdown("""
-        The output layer is the final layer in the network, and it produces the ultimate prediction. The number of neurons in this layer corresponds to the number of classes the model is trying to predict.
-        
-        For a multi-class classification problem, a **Softmax** activation function is typically used in the output layer. Softmax converts the raw output scores from the network into a probability distribution over the classes. Each neuron's output will be a value between 0 and 1, and the sum of all outputs will be 1, representing the model's confidence for each class.
-        
-        For example, for an image of a cat, the output might be:
-        - **Dog:** 0.1 (10%)
-        - **Cat:** 0.85 (85%)
-        - **Bird:** 0.05 (5%)
-        
-        The model's final prediction would be "Cat".
-        """)
+        st.markdown("#### 4. Fully Connected Layers & Output")
+        st.markdown("After feature extraction, the final maps are **flattened** into a vector and fed into **Fully Connected Layers** for classification. The **Output Layer** uses a function like **Softmax** to convert the final scores into class probabilities.")
+        st.pyplot(plot_softmax_output())
 
 # --- Page 4: Ethical Considerations ---
 elif page == "Ethical Considerations in CNNs":
     st.title("Ethical Considerations in CNNs")
-    st.markdown("---")
-    st.markdown("""
-    While CNNs are powerful tools with immense potential for positive impact, their development and deployment come with significant ethical responsibilities. It is crucial for engineers, researchers, and policymakers to consider these issues to ensure technology is used fairly, safely, and transparently.
-    """)
+    st.markdown("Developing and deploying CNNs comes with significant ethical responsibilities.")
+    
+    st.subheader("1. Data Bias")
+    st.warning("Models trained on biased data will produce biased results. If a dataset underrepresents a demographic, the model will perform poorly for that group.")
 
-    st.subheader("1. Biases in Image Datasets")
-    st.warning("""
-    **Concern:** The performance and fairness of a CNN are highly dependent on the data it was trained on. If a training dataset is not diverse and representative of the real world, the model will inherit and amplify existing societal biases.
+    st.subheader("2. Data Security & Privacy")
+    st.warning("Training data can be sensitive (e.g., medical scans, faces). This data must be secured and anonymized to protect user privacy.")
     
-    **Example:** A facial recognition model trained primarily on images of one demographic may perform poorly and make unfair judgments when applied to individuals from underrepresented groups. This can lead to discriminatory outcomes in areas like hiring, law enforcement, and loan applications.
+    st.subheader("3. Transparency & Interpretability")
+    st.warning("CNNs can be 'black boxes,' making it hard to understand their decisions. Interpretability is crucial for accountability and trust.")
     
-    **Mitigation:** Actively curating balanced and diverse datasets, using data augmentation techniques to increase representation, and continuously auditing models for biased performance across different demographic groups.
-    """)
-
-    st.subheader("2. Security and Confidentiality of Data")
-    st.warning("""
-    **Concern:** CNNs often require vast amounts of data for training, which can include sensitive personal information such as medical scans (MRIs, X-rays) or personal photos for facial recognition.
+    st.subheader("4. Responsible Deployment")
+    st.warning("Using CNNs in high-stakes areas like self-driving cars or medical diagnosis requires extreme caution, rigorous testing, and human oversight.")
     
-    **Example:** A breach of a healthcare database used for training a medical imaging CNN could expose the private health information of thousands of patients. Similarly, datasets of faces collected without consent violate individual privacy.
-    
-    **Mitigation:** Implementing robust data security protocols, anonymizing data wherever possible, using privacy-preserving techniques like federated learning (where the model is trained on local data without the data ever leaving the device), and adhering to data protection regulations like GDPR.
-    """)
-    
-    st.subheader("3. Need for Interpretability and Transparency")
-    st.warning("""
-    **Concern:** CNNs are often considered "black boxes" because their decision-making processes are not easily understood by humans. It can be difficult to determine *why* a model made a particular prediction.
-    
-    **Example:** If a CNN denies a loan application based on an analysis of satellite imagery of a property, the applicant has a right to know the reasoning behind the decision. Without transparency, it's impossible to challenge or correct erroneous conclusions.
-    
-    **Mitigation:** Developing and using techniques for model interpretability (e.g., LIME, SHAP, class activation maps) that help visualize which parts of an image were most influential in a model's decision. This is crucial for building trust and accountability.
-    """)
-    
-    st.subheader("4. Responsible Deployment in Critical Applications")
-    st.warning("""
-    **Concern:** The deployment of CNNs in high-stakes applications like autonomous vehicle navigation, medical diagnosis, and public surveillance carries significant risks.
-    
-    **Example:** An autonomous car's object detection system failing to recognize a pedestrian in unusual lighting conditions could have fatal consequences. Mass surveillance systems using facial recognition can enable social control and suppress dissent, raising profound questions about civil liberties.
-    
-    **Mitigation:** Establishing strong regulatory frameworks, conducting rigorous testing and validation in diverse real-world scenarios, incorporating human oversight ("human-in-the-loop" systems), and engaging in public discourse about the societal impact of deploying such technologies.
-    """)
-    
-    st.subheader("5. Potential Harmful Consequences of Errors")
-    st.warning("""
-    **Concern:** Even highly accurate models make mistakes. The consequences of these inaccuracies can range from minor inconveniences to severe harm.
-    
-    **Example:** A content moderation CNN incorrectly flagging a historical photo as inappropriate content can lead to censorship. A diagnostic AI incorrectly identifying cancer in a medical scan can lead to immense patient distress and unnecessary procedures. Conversely, failing to detect a disease could delay critical treatment.
-    
-- **Example:** A content moderation CNN incorrectly flagging a historical photo as inappropriate content can lead to censorship. A diagnostic AI incorrectly identifying cancer in a medical scan can lead to immense patient distress and unnecessary procedures. Conversely, failing to detect a disease could delay critical treatment.
-    
-    **Mitigation:** Designing systems with an understanding of their failure modes, providing clear confidence scores with predictions, ensuring there are mechanisms for appeal and correction, and avoiding full automation in decisions where human life and well-being are at stake.
-    """)
+    st.subheader("5. Consequences of Errors")
+    st.warning("All models make mistakes. In critical applications, the consequences of errors can be severe, so safeguards and appeal processes are necessary.")
 
